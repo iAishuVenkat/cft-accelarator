@@ -65,6 +65,21 @@ def generate():
     if not components:
         return jsonify({"error": "At least one service must be selected"}), 400
 
+    # Validate required fields are not empty
+    catalog = load_catalog()
+    for comp in components:
+        comp_type = comp.get("type", "")
+        if comp_type in catalog:
+            svc = catalog[comp_type]
+            options = svc.get("options", {})
+            for opt_key, opt in options.items():
+                if opt.get("required") and not opt.get("default"):
+                    value = comp.get(opt_key, "")
+                    if not value or str(value).strip() == "":
+                        return jsonify({
+                            "error": f"'{opt.get('prompt', opt_key)}' is required for {svc['name']}. Please go back and fill it in."
+                        }), 400
+
     # Build config
     config = {
         "project": project,

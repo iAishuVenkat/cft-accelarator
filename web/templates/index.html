@@ -974,6 +974,30 @@
         }
 
         function generateCFT() {
+            // Validate required fields before submitting
+            let hasError = false;
+            let errorMsg = '';
+            selectedServices.forEach(key => {
+                const svc = catalog[key];
+                if (!svc || !svc.options) return;
+                Object.entries(svc.options).forEach(([optKey, opt]) => {
+                    if (opt.required && !opt.default) {
+                        const el = document.getElementById(`cfg-${key}-${optKey}`);
+                        if (el && (!el.value || el.value.trim() === '')) {
+                            el.style.borderColor = '#ef4444';
+                            el.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.2)';
+                            hasError = true;
+                            errorMsg = `"${opt.prompt || optKey}" is required for ${svc.name}`;
+                        }
+                    }
+                });
+            });
+
+            if (hasError) {
+                alert('Missing required fields: ' + errorMsg);
+                return;
+            }
+
             nextStep(4);
             document.getElementById('loading').classList.add('active');
             document.getElementById('output-content').style.display = 'none';

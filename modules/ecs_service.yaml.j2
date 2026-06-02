@@ -80,7 +80,7 @@ Resources:
               awslogs-stream-prefix: ecs
 
   # ----- Security Group -----
-  ServiceSecurityGroup:
+  EcsServiceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for {{ resource_prefix }} ECS service
@@ -89,12 +89,12 @@ Resources:
         - IpProtocol: tcp
           FromPort: {{ component.port }}
           ToPort: {{ component.port }}
-          SourceSecurityGroupId: !Ref ALBSecurityGroup
+          SourceSecurityGroupId: !Ref EcsALBSecurityGroup
       Tags:
         - Key: Name
           Value: {{ resource_prefix }}-sg
 
-  ALBSecurityGroup:
+  EcsALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for {{ resource_prefix }} ALB
@@ -113,7 +113,7 @@ Resources:
           Value: {{ resource_prefix }}-alb-sg
 
   # ----- Application Load Balancer -----
-  LoadBalancer:
+  EcsLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       Name: {{ resource_prefix }}-alb
@@ -123,9 +123,9 @@ Resources:
         - ','
         - !ImportValue {{ project }}-{{ environment }}-vpc-PublicSubnets
       SecurityGroups:
-        - !Ref ALBSecurityGroup
+        - !Ref EcsALBSecurityGroup
 
-  TargetGroup:
+  EcsTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Name: {{ resource_prefix }}-tg
@@ -138,20 +138,20 @@ Resources:
       HealthyThresholdCount: 3
       UnhealthyThresholdCount: 3
 
-  Listener:
+  EcsListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      LoadBalancerArn: !Ref LoadBalancer
+      LoadBalancerArn: !Ref EcsLoadBalancer
       Port: 80
       Protocol: HTTP
       DefaultActions:
         - Type: forward
-          TargetGroupArn: !Ref TargetGroup
+          TargetGroupArn: !Ref EcsTargetGroup
 
   # ----- ECS Service -----
   ECSService:
     Type: AWS::ECS::Service
-    DependsOn: Listener
+    DependsOn: EcsListener
     Properties:
       ServiceName: {{ resource_prefix }}-service
       Cluster: !Ref ECSCluster
@@ -165,11 +165,11 @@ Resources:
             - ','
             - !ImportValue {{ project }}-{{ environment }}-vpc-PrivateSubnets
           SecurityGroups:
-            - !Ref ServiceSecurityGroup
+            - !Ref EcsServiceSecurityGroup
       LoadBalancers:
         - ContainerName: {{ project }}-container
           ContainerPort: {{ component.port }}
-          TargetGroupArn: !Ref TargetGroup
+          TargetGroupArn: !Ref EcsTargetGroup
 
   # ----- Auto Scaling -----
   AutoScalingTarget:
@@ -202,6 +202,6 @@ Outputs:
 
   ServiceUrl:
     Description: Load Balancer URL
-    Value: !Sub 'http://${LoadBalancer.DNSName}'
+    Value: !Sub 'http://${EcsLoadBalancer.DNSName}'
     Export:
       Name: {{ resource_prefix }}-ServiceUrl
