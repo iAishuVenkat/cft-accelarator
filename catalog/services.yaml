@@ -1,0 +1,915 @@
+# ============================================================
+# Service Catalog - Complete AWS Service Templates
+# ============================================================
+# Stock of ALL common AWS service templates. Users pick which
+# services they need, tool assembles config and generates CFT.
+# ============================================================
+
+services:
+
+  # ============================
+  # NETWORKING
+  # ============================
+
+  vpc:
+    name: "VPC (Virtual Private Cloud)"
+    description: "Network foundation with public/private subnets, internet gateway, NAT, and route tables."
+    category: Networking
+    options:
+      cidr:
+        description: "VPC CIDR block"
+        type: string
+        default: "10.0.0.0/16"
+        prompt: "VPC CIDR block"
+      availability_zones:
+        description: "Number of availability zones"
+        type: choice
+        choices: [2, 3]
+        default: 2
+        prompt: "Number of availability zones"
+      enable_nat_gateway:
+        description: "Enable NAT Gateway for private subnet internet access"
+        type: boolean
+        default: true
+        prompt: "Enable NAT Gateway"
+
+  alb:
+    name: "ALB (Application Load Balancer)"
+    description: "Layer 7 load balancer with health checks, HTTPS support, and routing rules."
+    category: Networking
+    requires: [vpc]
+    options:
+      internal:
+        description: "Internal (private) or internet-facing"
+        type: boolean
+        default: false
+        prompt: "Internal load balancer"
+      ssl_certificate_arn:
+        description: "ACM certificate ARN for HTTPS"
+        type: string
+        default: ""
+        prompt: "SSL certificate ARN (leave empty for HTTP only)"
+
+  nlb:
+    name: "NLB (Network Load Balancer)"
+    description: "Layer 4 load balancer for TCP/UDP traffic with ultra-low latency."
+    category: Networking
+    requires: [vpc]
+    options:
+      internal:
+        description: "Internal or internet-facing"
+        type: boolean
+        default: false
+        prompt: "Internal load balancer"
+      cross_zone:
+        description: "Enable cross-zone load balancing"
+        type: boolean
+        default: true
+        prompt: "Enable cross-zone load balancing"
+
+  api-gateway:
+    name: "API Gateway (REST API)"
+    description: "Managed REST API with throttling, stages, and CloudWatch logging."
+    category: Networking
+    options:
+      stage_name:
+        description: "API stage name"
+        type: string
+        default: "v1"
+        prompt: "Stage name"
+      description:
+        description: "API description"
+        type: string
+        default: "REST API"
+        prompt: "API description"
+
+  cloudfront:
+    name: "CloudFront (CDN)"
+    description: "Content delivery network with HTTPS, caching, and global edge locations."
+    category: Networking
+    requires: [s3-static-site]
+    options:
+      price_class:
+        description: "Price class (geographic reach)"
+        type: choice
+        choices: [PriceClass_100, PriceClass_200, PriceClass_All]
+        default: PriceClass_100
+        prompt: "Price class (100=US/EU, 200=+Asia, All=global)"
+      default_ttl:
+        description: "Default cache TTL in seconds"
+        type: integer
+        default: 86400
+        prompt: "Default cache TTL (seconds)"
+
+  route53:
+    name: "Route 53 (DNS)"
+    description: "DNS hosted zone with optional health checks."
+    category: Networking
+    options:
+      domain_name:
+        description: "Domain name"
+        type: string
+        required: true
+        prompt: "Domain name (e.g., example.com)"
+      private_zone:
+        description: "Private hosted zone"
+        type: boolean
+        default: false
+        prompt: "Private hosted zone"
+
+  # ============================
+  # COMPUTE
+  # ============================
+
+  ecs-service:
+    name: "ECS Fargate (Container Service)"
+    description: "Serverless container hosting with load balancer, auto-scaling, and logging."
+    category: Compute
+    requires: [vpc]
+    options:
+      image:
+        description: "Container image URI"
+        type: string
+        required: true
+        prompt: "Container image (e.g., 123456.dkr.ecr.us-east-1.amazonaws.com/app:latest)"
+      cpu:
+        description: "CPU units for the task"
+        type: choice
+        choices: [256, 512, 1024, 2048, 4096]
+        default: 512
+        prompt: "CPU units"
+      memory:
+        description: "Memory in MB"
+        type: choice
+        choices: [512, 1024, 2048, 4096, 8192]
+        default: 1024
+        prompt: "Memory (MB)"
+      desired_count:
+        description: "Number of running containers"
+        type: integer
+        default: 2
+        prompt: "Number of running containers"
+      port:
+        description: "Container port"
+        type: integer
+        default: 80
+        prompt: "Container port"
+      health_check_path:
+        description: "Health check endpoint path"
+        type: string
+        default: "/health"
+        prompt: "Health check path"
+
+  lambda:
+    name: "Lambda (Serverless Function)"
+    description: "Serverless function with IAM role, CloudWatch logging, and configurable runtime."
+    category: Compute
+    options:
+      handler:
+        description: "Function entry point"
+        type: string
+        required: true
+        default: "app.handler"
+        prompt: "Handler (e.g., app.handler)"
+      runtime:
+        description: "Language runtime"
+        type: choice
+        choices: [python3.12, python3.11, nodejs20.x, nodejs18.x, java21, java17, dotnet8, go1.x]
+        required: true
+        default: python3.12
+        prompt: "Runtime"
+      memory_size:
+        description: "Memory in MB"
+        type: choice
+        choices: [128, 256, 512, 1024, 2048, 3072]
+        default: 256
+        prompt: "Memory (MB)"
+      timeout:
+        description: "Timeout in seconds"
+        type: integer
+        default: 30
+        prompt: "Timeout (seconds)"
+      environment_vars:
+        description: "Environment variables"
+        type: key_value
+        default: {}
+        prompt: "Add environment variables"
+
+  ec2:
+    name: "EC2 (Virtual Server)"
+    description: "EC2 instance with security group, IAM role, and optional Elastic IP."
+    category: Compute
+    requires: [vpc]
+    options:
+      instance_type:
+        description: "Instance type"
+        type: choice
+        choices: [t3.micro, t3.small, t3.medium, t3.large, t3.xlarge, m6i.large, m6i.xlarge, c6i.large, c6i.xlarge]
+        default: t3.medium
+        prompt: "Instance type"
+      ami_id:
+        description: "AMI ID (leave empty for latest Amazon Linux 2023)"
+        type: string
+        default: ""
+        prompt: "AMI ID (empty = Amazon Linux 2023)"
+      key_pair:
+        description: "EC2 key pair name for SSH"
+        type: string
+        default: ""
+        prompt: "Key pair name (empty = no SSH)"
+      volume_size:
+        description: "Root EBS volume size in GB"
+        type: integer
+        default: 30
+        prompt: "Root volume size (GB)"
+      assign_public_ip:
+        description: "Assign public IP"
+        type: boolean
+        default: false
+        prompt: "Assign public IP"
+
+  ecs-cluster:
+    name: "ECS Cluster (Container Cluster)"
+    description: "ECS cluster with Container Insights and capacity providers."
+    category: Compute
+    requires: [vpc]
+    options:
+      enable_container_insights:
+        description: "Enable CloudWatch Container Insights"
+        type: boolean
+        default: true
+        prompt: "Enable Container Insights"
+
+  auto-scaling-group:
+    name: "Auto Scaling Group"
+    description: "Auto Scaling Group with launch template, scaling policies, and health checks."
+    category: Compute
+    requires: [vpc]
+    options:
+      instance_type:
+        description: "Instance type"
+        type: choice
+        choices: [t3.micro, t3.small, t3.medium, t3.large, m6i.large, m6i.xlarge]
+        default: t3.medium
+        prompt: "Instance type"
+      min_size:
+        description: "Minimum instances"
+        type: integer
+        default: 1
+        prompt: "Minimum instances"
+      max_size:
+        description: "Maximum instances"
+        type: integer
+        default: 4
+        prompt: "Maximum instances"
+      desired_capacity:
+        description: "Desired number of instances"
+        type: integer
+        default: 2
+        prompt: "Desired capacity"
+      health_check_type:
+        description: "Health check type"
+        type: choice
+        choices: [EC2, ELB]
+        default: EC2
+        prompt: "Health check type"
+
+  step-functions:
+    name: "Step Functions (Workflow)"
+    description: "Serverless workflow orchestration with state machine definition."
+    category: Compute
+    options:
+      state_machine_type:
+        description: "State machine type"
+        type: choice
+        choices: [STANDARD, EXPRESS]
+        default: STANDARD
+        prompt: "State machine type (STANDARD=long-running, EXPRESS=high-volume)"
+      logging_level:
+        description: "Logging level"
+        type: choice
+        choices: [ALL, ERROR, FATAL, 'OFF']
+        default: ERROR
+        prompt: "Logging level"
+
+  # ============================
+  # DATABASE
+  # ============================
+
+  rds:
+    name: "RDS (Relational Database)"
+    description: "Managed database (PostgreSQL/MySQL) with encryption, backups, and Secrets Manager."
+    category: Database
+    requires: [vpc]
+    options:
+      engine:
+        description: "Database engine"
+        type: choice
+        choices: [postgres, mysql]
+        default: postgres
+        prompt: "Database engine"
+      engine_version:
+        description: "Engine version"
+        type: string
+        default: "15.4"
+        prompt: "Engine version"
+      instance_class:
+        description: "Instance size"
+        type: choice
+        choices: [db.t3.micro, db.t3.small, db.t3.medium, db.t3.large, db.r6g.large, db.r6g.xlarge]
+        default: db.t3.medium
+        prompt: "Instance class"
+      allocated_storage:
+        description: "Storage in GB"
+        type: integer
+        default: 20
+        prompt: "Storage (GB)"
+      multi_az:
+        description: "Enable Multi-AZ for high availability"
+        type: boolean
+        default: false
+        prompt: "Enable Multi-AZ"
+      backup_retention_days:
+        description: "Days to retain backups"
+        type: integer
+        default: 7
+        prompt: "Backup retention (days)"
+
+  dynamodb:
+    name: "DynamoDB (NoSQL Database)"
+    description: "Serverless NoSQL table with on-demand or provisioned capacity and optional GSI."
+    category: Database
+    options:
+      table_name:
+        description: "Table name"
+        type: string
+        required: true
+        prompt: "Table name"
+      partition_key:
+        description: "Partition key name"
+        type: string
+        required: true
+        default: "id"
+        prompt: "Partition key name"
+      partition_key_type:
+        description: "Partition key type"
+        type: choice
+        choices: [S, N, B]
+        default: S
+        prompt: "Partition key type (S=String, N=Number, B=Binary)"
+      sort_key:
+        description: "Sort key name (leave empty for none)"
+        type: string
+        default: ""
+        prompt: "Sort key name (empty = no sort key)"
+      sort_key_type:
+        description: "Sort key type"
+        type: choice
+        choices: [S, N, B]
+        default: S
+        prompt: "Sort key type (S=String, N=Number, B=Binary)"
+      billing_mode:
+        description: "Billing mode"
+        type: choice
+        choices: [PAY_PER_REQUEST, PROVISIONED]
+        default: PAY_PER_REQUEST
+        prompt: "Billing mode"
+      enable_point_in_time_recovery:
+        description: "Enable point-in-time recovery"
+        type: boolean
+        default: true
+        prompt: "Enable point-in-time recovery"
+
+  elasticache:
+    name: "ElastiCache (Redis/Memcached)"
+    description: "Managed in-memory cache cluster with Redis or Memcached."
+    category: Database
+    requires: [vpc]
+    options:
+      engine:
+        description: "Cache engine"
+        type: choice
+        choices: [redis, memcached]
+        default: redis
+        prompt: "Cache engine"
+      node_type:
+        description: "Node instance type"
+        type: choice
+        choices: [cache.t3.micro, cache.t3.small, cache.t3.medium, cache.r6g.large]
+        default: cache.t3.medium
+        prompt: "Node type"
+      num_cache_nodes:
+        description: "Number of cache nodes"
+        type: integer
+        default: 1
+        prompt: "Number of cache nodes"
+      engine_version:
+        description: "Engine version"
+        type: string
+        default: "7.0"
+        prompt: "Engine version"
+
+  aurora:
+    name: "Aurora (Serverless/Cluster DB)"
+    description: "Aurora PostgreSQL/MySQL cluster with auto-scaling and serverless v2 option."
+    category: Database
+    requires: [vpc]
+    options:
+      engine:
+        description: "Aurora engine"
+        type: choice
+        choices: [aurora-postgresql, aurora-mysql]
+        default: aurora-postgresql
+        prompt: "Aurora engine"
+      engine_version:
+        description: "Engine version"
+        type: string
+        default: "15.4"
+        prompt: "Engine version"
+      serverless:
+        description: "Use Aurora Serverless v2"
+        type: boolean
+        default: true
+        prompt: "Use Serverless v2 (auto-scaling)"
+      min_capacity:
+        description: "Minimum ACUs (serverless)"
+        type: integer
+        default: 1
+        prompt: "Minimum ACUs"
+      max_capacity:
+        description: "Maximum ACUs (serverless)"
+        type: integer
+        default: 16
+        prompt: "Maximum ACUs"
+
+  # ============================
+  # STORAGE
+  # ============================
+
+  s3:
+    name: "S3 (General Purpose Bucket)"
+    description: "S3 bucket with encryption, versioning, and lifecycle rules."
+    category: Storage
+    options:
+      bucket_suffix:
+        description: "Bucket name suffix"
+        type: string
+        default: "data"
+        prompt: "Bucket name suffix (appended to project name)"
+      versioning:
+        description: "Enable versioning"
+        type: boolean
+        default: true
+        prompt: "Enable versioning"
+      lifecycle_expiration_days:
+        description: "Days before objects expire (0 = never)"
+        type: integer
+        default: 0
+        prompt: "Object expiration days (0 = never)"
+      block_public_access:
+        description: "Block all public access"
+        type: boolean
+        default: true
+        prompt: "Block all public access"
+
+  s3-static-site:
+    name: "S3 (Static Website Hosting)"
+    description: "S3 bucket configured for static site hosting with encryption and versioning."
+    category: Storage
+    options:
+      index_document:
+        description: "Index page"
+        type: string
+        default: "index.html"
+        prompt: "Index document"
+      error_document:
+        description: "Error page"
+        type: string
+        default: "error.html"
+        prompt: "Error document"
+
+  efs:
+    name: "EFS (Elastic File System)"
+    description: "Managed NFS file system for shared storage across EC2/ECS instances."
+    category: Storage
+    requires: [vpc]
+    options:
+      performance_mode:
+        description: "Performance mode"
+        type: choice
+        choices: [generalPurpose, maxIO]
+        default: generalPurpose
+        prompt: "Performance mode"
+      throughput_mode:
+        description: "Throughput mode"
+        type: choice
+        choices: [bursting, elastic]
+        default: elastic
+        prompt: "Throughput mode"
+      encrypted:
+        description: "Enable encryption at rest"
+        type: boolean
+        default: true
+        prompt: "Enable encryption"
+
+  # ============================
+  # MESSAGING & QUEUES
+  # ============================
+
+  sqs:
+    name: "SQS (Simple Queue Service)"
+    description: "Managed message queue with optional dead-letter queue and encryption."
+    category: Messaging
+    options:
+      queue_type:
+        description: "Queue type"
+        type: choice
+        choices: [standard, fifo]
+        default: standard
+        prompt: "Queue type (standard or FIFO)"
+      visibility_timeout:
+        description: "Visibility timeout in seconds"
+        type: integer
+        default: 30
+        prompt: "Visibility timeout (seconds)"
+      message_retention_days:
+        description: "Message retention in days"
+        type: integer
+        default: 4
+        prompt: "Message retention (days)"
+      enable_dlq:
+        description: "Enable dead-letter queue"
+        type: boolean
+        default: true
+        prompt: "Enable dead-letter queue"
+      max_receive_count:
+        description: "Max receives before sending to DLQ"
+        type: integer
+        default: 3
+        prompt: "Max receive count (before DLQ)"
+
+  sns:
+    name: "SNS (Simple Notification Service)"
+    description: "Pub/sub messaging topic with optional subscriptions."
+    category: Messaging
+    options:
+      display_name:
+        description: "Topic display name"
+        type: string
+        default: ""
+        prompt: "Topic display name"
+      fifo_topic:
+        description: "FIFO topic (ordered delivery)"
+        type: boolean
+        default: false
+        prompt: "FIFO topic"
+      kms_encryption:
+        description: "Enable KMS encryption"
+        type: boolean
+        default: true
+        prompt: "Enable KMS encryption"
+
+  eventbridge:
+    name: "EventBridge (Event Bus)"
+    description: "Custom event bus with rules for event-driven architectures."
+    category: Messaging
+    options:
+      bus_name:
+        description: "Event bus name"
+        type: string
+        default: "custom-events"
+        prompt: "Event bus name"
+
+  kinesis:
+    name: "Kinesis (Data Stream)"
+    description: "Real-time data streaming with configurable shards and retention."
+    category: Messaging
+    options:
+      shard_count:
+        description: "Number of shards"
+        type: integer
+        default: 1
+        prompt: "Number of shards"
+      retention_hours:
+        description: "Data retention in hours"
+        type: integer
+        default: 24
+        prompt: "Retention period (hours)"
+      stream_mode:
+        description: "Capacity mode"
+        type: choice
+        choices: [PROVISIONED, ON_DEMAND]
+        default: ON_DEMAND
+        prompt: "Capacity mode"
+
+  # ============================
+  # SECURITY & IDENTITY
+  # ============================
+
+  cognito:
+    name: "Cognito (User Authentication)"
+    description: "User pool with sign-up/sign-in, MFA, and app client."
+    category: Security
+    options:
+      pool_name:
+        description: "User pool name"
+        type: string
+        default: "app-users"
+        prompt: "User pool name"
+      mfa_configuration:
+        description: "MFA configuration"
+        type: choice
+        choices: ['OFF', OPTIONAL, 'ON']
+        default: OPTIONAL
+        prompt: "MFA configuration"
+      auto_verified_attributes:
+        description: "Auto-verified attributes"
+        type: choice
+        choices: [email, phone_number]
+        default: email
+        prompt: "Auto-verify by"
+      password_min_length:
+        description: "Minimum password length"
+        type: integer
+        default: 8
+        prompt: "Minimum password length"
+
+  waf:
+    name: "WAF (Web Application Firewall)"
+    description: "Web ACL with managed rule groups for common protections."
+    category: Security
+    options:
+      scope:
+        description: "WAF scope"
+        type: choice
+        choices: [REGIONAL, CLOUDFRONT]
+        default: REGIONAL
+        prompt: "WAF scope (REGIONAL for ALB/API GW, CLOUDFRONT for CF)"
+      enable_rate_limiting:
+        description: "Enable rate limiting"
+        type: boolean
+        default: true
+        prompt: "Enable rate limiting"
+      rate_limit:
+        description: "Requests per 5 minutes per IP"
+        type: integer
+        default: 2000
+        prompt: "Rate limit (requests per 5 min per IP)"
+
+  secrets-manager:
+    name: "Secrets Manager"
+    description: "Managed secret with optional auto-rotation."
+    category: Security
+    options:
+      secret_name:
+        description: "Secret name"
+        type: string
+        required: true
+        prompt: "Secret name"
+      generate_password:
+        description: "Auto-generate a random password"
+        type: boolean
+        default: true
+        prompt: "Auto-generate password"
+      password_length:
+        description: "Generated password length"
+        type: integer
+        default: 32
+        prompt: "Password length"
+
+  kms:
+    name: "KMS (Encryption Key)"
+    description: "Customer managed KMS key with key rotation and alias."
+    category: Security
+    options:
+      alias:
+        description: "Key alias"
+        type: string
+        required: true
+        prompt: "Key alias (e.g., my-app-key)"
+      enable_rotation:
+        description: "Enable automatic key rotation"
+        type: boolean
+        default: true
+        prompt: "Enable key rotation"
+      pending_deletion_days:
+        description: "Days before key deletion"
+        type: integer
+        default: 30
+        prompt: "Pending deletion window (days)"
+
+  # ============================
+  # MONITORING & LOGGING
+  # ============================
+
+  cloudwatch-alarm:
+    name: "CloudWatch Alarm"
+    description: "Metric alarm with SNS notification for alerting."
+    category: Monitoring
+    options:
+      alarm_name:
+        description: "Alarm name"
+        type: string
+        required: true
+        prompt: "Alarm name"
+      metric_name:
+        description: "Metric to monitor"
+        type: string
+        required: true
+        prompt: "Metric name (e.g., CPUUtilization)"
+      namespace:
+        description: "Metric namespace"
+        type: string
+        required: true
+        prompt: "Namespace (e.g., AWS/ECS, AWS/RDS)"
+      threshold:
+        description: "Alarm threshold"
+        type: integer
+        required: true
+        prompt: "Threshold value"
+      comparison_operator:
+        description: "Comparison operator"
+        type: choice
+        choices: [GreaterThanThreshold, LessThanThreshold, GreaterThanOrEqualToThreshold]
+        default: GreaterThanThreshold
+        prompt: "Comparison operator"
+      period:
+        description: "Evaluation period in seconds"
+        type: integer
+        default: 300
+        prompt: "Period (seconds)"
+      evaluation_periods:
+        description: "Number of periods to evaluate"
+        type: integer
+        default: 3
+        prompt: "Evaluation periods"
+
+  cloudwatch-dashboard:
+    name: "CloudWatch Dashboard"
+    description: "Custom monitoring dashboard with configurable widgets."
+    category: Monitoring
+    options:
+      dashboard_name:
+        description: "Dashboard name"
+        type: string
+        default: "app-dashboard"
+        prompt: "Dashboard name"
+
+  cloudtrail:
+    name: "CloudTrail (Audit Logging)"
+    description: "API activity logging with S3 storage and optional CloudWatch integration."
+    category: Monitoring
+    options:
+      is_multi_region:
+        description: "Multi-region trail"
+        type: boolean
+        default: true
+        prompt: "Multi-region trail"
+      enable_log_file_validation:
+        description: "Enable log file integrity validation"
+        type: boolean
+        default: true
+        prompt: "Enable log file validation"
+
+  # ============================
+  # CI/CD & DEPLOYMENT
+  # ============================
+
+  codepipeline:
+    name: "CodePipeline (CI/CD Pipeline)"
+    description: "Automated deployment pipeline with source, build, and deploy stages."
+    category: CICD
+    options:
+      source_provider:
+        description: "Source provider"
+        type: choice
+        choices: [CodeCommit, GitHub, S3]
+        default: CodeCommit
+        prompt: "Source provider"
+      repo_name:
+        description: "Repository name"
+        type: string
+        required: true
+        prompt: "Repository name"
+      branch:
+        description: "Branch to deploy from"
+        type: string
+        default: "main"
+        prompt: "Branch"
+
+  codebuild:
+    name: "CodeBuild (Build Project)"
+    description: "Managed build environment with configurable compute and build spec."
+    category: CICD
+    options:
+      compute_type:
+        description: "Build compute type"
+        type: choice
+        choices: [BUILD_GENERAL1_SMALL, BUILD_GENERAL1_MEDIUM, BUILD_GENERAL1_LARGE]
+        default: BUILD_GENERAL1_SMALL
+        prompt: "Compute type"
+      build_image:
+        description: "Build environment image"
+        type: string
+        default: "aws/codebuild/amazonlinux2-x86_64-standard:5.0"
+        prompt: "Build image"
+      timeout_minutes:
+        description: "Build timeout in minutes"
+        type: integer
+        default: 30
+        prompt: "Build timeout (minutes)"
+
+  ecr:
+    name: "ECR (Container Registry)"
+    description: "Docker container image registry with lifecycle policies and scanning."
+    category: CICD
+    options:
+      repository_name:
+        description: "Repository name"
+        type: string
+        required: true
+        prompt: "Repository name"
+      image_tag_mutability:
+        description: "Image tag mutability"
+        type: choice
+        choices: [MUTABLE, IMMUTABLE]
+        default: IMMUTABLE
+        prompt: "Tag mutability"
+      scan_on_push:
+        description: "Scan images on push"
+        type: boolean
+        default: true
+        prompt: "Scan images on push"
+      lifecycle_max_images:
+        description: "Max images to keep (lifecycle policy)"
+        type: integer
+        default: 30
+        prompt: "Max images to retain"
+
+  # ============================
+  # APPLICATION INTEGRATION
+  # ============================
+
+  appsync:
+    name: "AppSync (GraphQL API)"
+    description: "Managed GraphQL API with real-time subscriptions and caching."
+    category: Integration
+    options:
+      api_name:
+        description: "API name"
+        type: string
+        required: true
+        prompt: "API name"
+      authentication_type:
+        description: "Authentication type"
+        type: choice
+        choices: [API_KEY, AMAZON_COGNITO_USER_POOLS, AWS_IAM]
+        default: API_KEY
+        prompt: "Authentication type"
+
+  ses:
+    name: "SES (Email Service)"
+    description: "Email sending with verified domain identity and configuration set."
+    category: Integration
+    options:
+      domain:
+        description: "Email domain"
+        type: string
+        required: true
+        prompt: "Email domain (e.g., example.com)"
+
+  # ============================
+  # ANALYTICS
+  # ============================
+
+  glue:
+    name: "Glue (ETL Service)"
+    description: "Serverless ETL with crawler, database catalog, and job."
+    category: Analytics
+    options:
+      database_name:
+        description: "Glue catalog database name"
+        type: string
+        required: true
+        prompt: "Catalog database name"
+      crawler_s3_path:
+        description: "S3 path for crawler"
+        type: string
+        default: ""
+        prompt: "S3 path for crawler (e.g., s3://bucket/prefix/)"
+
+  athena:
+    name: "Athena (SQL Query Service)"
+    description: "Serverless SQL query service with named workgroup and output location."
+    category: Analytics
+    options:
+      workgroup_name:
+        description: "Workgroup name"
+        type: string
+        default: "primary"
+        prompt: "Workgroup name"
+      output_location:
+        description: "Query results S3 location"
+        type: string
+        required: true
+        prompt: "Results output S3 path (e.g., s3://bucket/athena-results/)"
