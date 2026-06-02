@@ -1,14 +1,20 @@
-# CloudFormation Accelerator
+# ☁️ CloudFormation Accelerator
 
-A config-driven generator that produces production-ready AWS CloudFormation templates from a service catalog.
+A config-driven generator that produces production-ready AWS CloudFormation templates from a catalog of 37 AWS services.
 
-## How It Works
+**Live Demo:** [cft-accelarator.vercel.app](https://cft-accelarator.vercel.app)
+
+## What It Does
 
 ```
-You say:    "I need a web app with a database"
-Tool does:  Picks templates from catalog → builds config → generates CFT
-You get:    500+ lines of production-ready CloudFormation, deployed in minutes
+You pick:    AWS services you need (VPC, ECS, RDS, Lambda, SQS, etc.)
+Tool does:   Assembles config → validates → generates complete CloudFormation
+You get:     500+ lines of production-ready YAML, deployed in minutes
 ```
+
+Turns what normally takes 2-3 days of manual YAML writing into a 5-minute process.
+
+---
 
 ## Quick Start
 
@@ -26,22 +32,32 @@ pip install -r requirements.txt
 
 ---
 
-## 3 Ways to Use
+## 4 Ways to Use
 
-### Way 1: Interactive Wizard (Easiest - asks you questions)
+### 1. Web UI (Visual — hosted on Vercel)
+
+Visit the live app or run locally:
+
+```bash
+python web/app.py
+# Open http://localhost:5000
+```
+
+4-step wizard in the browser:
+1. Enter project name, environment, region
+2. Click services you need
+3. Configure settings
+4. Generate & download CloudFormation
+
+### 2. Interactive CLI Wizard
 
 ```bash
 python wizard.py
 ```
 
-The wizard will:
-1. Show all available AWS services (VPC, ECS, RDS, Lambda, etc.)
-2. Let you pick which ones you need
-3. Auto-add dependencies (e.g., ECS needs VPC)
-4. Ask for configuration inputs
-5. Build the config and generate CloudFormation
+Asks questions, accepts both numbers and service names (e.g., `vpc, rds, lambda`).
 
-### Way 2: Quick Build (One command, no prompts)
+### 3. Quick Build (One Command)
 
 ```bash
 # See available services
@@ -57,16 +73,13 @@ python quick_build.py --project my-api --env dev --services lambda,api-gateway -
 python quick_build.py --project my-site --env prod --services s3-static-site,cloudfront
 
 # Override defaults
-python quick_build.py --project big-app --env prod --services ecs-service,rds --image app:v2 --cpu 2048 --memory 4096 --engine mysql --multi-az true
+python quick_build.py --project big-app --env prod --services ecs-service,rds --image app:v2 --cpu 2048 --memory 4096 --engine mysql
 ```
 
-### Way 3: Manual Config (Full control)
+### 4. Manual Config (Full Control)
 
 ```bash
-# Copy an example
-copy examples\web-app.yaml my-project.yaml
-
-# Edit it
+# Write your own config
 notepad my-project.yaml
 
 # Generate
@@ -77,91 +90,161 @@ python generate.py my-project.yaml
 
 ## Deploy to AWS
 
-After generation, deploy with:
+After generation:
 
 ```bash
-aws cloudformation deploy --template-file output/main.yaml --stack-name my-project-prod --capabilities CAPABILITY_NAMED_IAM
+aws cloudformation deploy \
+  --template-file output/main.yaml \
+  --stack-name my-project-prod \
+  --capabilities CAPABILITY_NAMED_IAM
 ```
+
+---
+
+## Service Catalog (37 AWS Services)
+
+The catalog (`catalog/services.yaml`) contains individual AWS service templates:
+
+| Category | Services |
+|----------|----------|
+| **Networking** | VPC, ALB, NLB, API Gateway, CloudFront, Route 53 |
+| **Compute** | ECS Fargate, ECS Cluster, Lambda, EC2, Auto Scaling Group, Step Functions |
+| **Database** | RDS, DynamoDB, ElastiCache, Aurora |
+| **Storage** | S3 (general), S3 (static site), EFS |
+| **Messaging** | SQS, SNS, EventBridge, Kinesis |
+| **Security** | Cognito, WAF, Secrets Manager, KMS |
+| **Monitoring** | CloudWatch Alarm, CloudWatch Dashboard, CloudTrail |
+| **CI/CD** | CodePipeline, CodeBuild, ECR |
+| **Integration** | AppSync, SES |
+| **Analytics** | Glue, Athena |
+
+Dependencies are **auto-resolved** — picking `ecs-service` auto-adds `vpc`.
+
+---
 
 ## Project Structure
 
 ```
 cft-accelerator/
-├── wizard.py                # Interactive wizard (asks questions)
-├── quick_build.py           # One-command builder (no prompts)
-├── generate.py              # Core generator engine
-├── requirements.txt         # Python dependencies
-├── README.md
-├── catalog/                 # Service catalog (stock of patterns)
+├── web/                     # Web UI (Flask)
+│   ├── app.py
+│   └── templates/index.html
+├── api/                     # Vercel serverless entry point
+│   └── index.py
+├── catalog/                 # Service catalog (stock of templates)
 │   └── services.yaml
-├── examples/                # Example manual configs
-│   ├── web-app.yaml
-│   ├── serverless-api.yaml
-│   └── static-site.yaml
-├── modules/                 # Reusable CFT module templates
+├── modules/                 # 37 Jinja2 CFT module templates
 │   ├── vpc.yaml.j2
 │   ├── ecs_service.yaml.j2
 │   ├── rds.yaml.j2
 │   ├── lambda_function.yaml.j2
-│   ├── api_gateway.yaml.j2
-│   ├── s3_static_site.yaml.j2
-│   ├── cloudfront.yaml.j2
-│   └── alb.yaml.j2
-├── schemas/                 # Validation schemas
+│   ├── ... (37 total)
+│   └── athena.yaml.j2
+├── schemas/                 # Validation schema
 │   └── config_schema.yaml
-└── output/                  # Generated templates go here
+├── examples/                # Example manual configs
+│   ├── web-app.yaml
+│   ├── serverless-api.yaml
+│   └── static-site.yaml
+├── output/                  # Generated templates
+├── generate.py              # Core generator engine
+├── wizard.py                # Interactive CLI wizard
+├── quick_build.py           # One-command builder
+├── requirements.txt         # Python dependencies
+└── vercel.json              # Vercel deployment config
 ```
 
-## Service Catalog (Individual AWS Services)
+---
 
-The catalog (`catalog/services.yaml`) is a stock of individual AWS service templates:
+## How It Works
 
-| Service Key | AWS Service | Dependencies |
-|-------------|-------------|--------------|
-| `vpc` | VPC with subnets, NAT, routes | None |
-| `ecs-service` | ECS Fargate containers | Requires: vpc |
-| `rds` | RDS database (PostgreSQL/MySQL) | Requires: vpc |
-| `lambda` | Lambda function | None |
-| `api-gateway` | API Gateway REST API | None |
-| `s3-static-site` | S3 static website bucket | None |
-| `cloudfront` | CloudFront CDN | Requires: s3-static-site |
-| `alb` | Application Load Balancer | Requires: vpc |
+```
+┌─────────────────────────────────────────────────────────────┐
+│  SERVICE CATALOG (37 AWS service templates)                  │
+│  vpc │ ecs │ rds │ lambda │ sqs │ cognito │ waf │ ...       │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+       User picks services (UI / CLI / config file)
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│  BUILDER                                                    │
+│  • Reads catalog for selected services                      │
+│  • Auto-adds dependencies (e.g., ECS needs VPC)            │
+│  • Applies best-practice defaults                           │
+│  • Validates required fields                                │
+│  • Assembles config YAML                                    │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│  GENERATOR (generate.py)                                    │
+│  • Picks Jinja2 module templates                            │
+│  • Renders with project context                             │
+│  • Produces complete CloudFormation YAML                     │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+              output/main.yaml (deploy to AWS)
+```
 
-Dependencies are **auto-resolved** — if you pick `ecs-service`, the tool automatically adds `vpc` for you.
+---
 
-## Supported Components
+## Key Features
 
-| Component | Description |
-|-----------|-------------|
-| `vpc` | VPC with public/private subnets, NAT Gateway, route tables |
-| `ecs-service` | ECS Fargate service with auto-scaling |
-| `rds` | RDS database (PostgreSQL or MySQL) with backups |
-| `lambda` | Lambda function with IAM role |
-| `api-gateway` | REST API Gateway |
-| `s3-static-site` | S3 bucket configured for static hosting |
-| `cloudfront` | CloudFront CDN distribution |
-| `alb` | Application Load Balancer |
+- **37 AWS services** in the catalog, ready to combine
+- **Auto-dependency resolution** — pick RDS, VPC gets added
+- **Best-practice defaults** — encryption, backups, IAM least-privilege baked in
+- **Validation** — catches errors before generating (empty fields, invalid types)
+- **No duplicate resource conflicts** — unique logical IDs per module
+- **3 interfaces** — Web UI, interactive CLI, one-command CLI
+- **Free hosting** on Vercel
 
-## Adding New AWS Services to the Catalog
+---
 
-To add a new AWS service (e.g., SQS, DynamoDB, ElastiCache):
+## Adding New AWS Services
 
-1. **Add the service template** in `modules/your_service.yaml.j2`
-2. **Register it in the catalog** — add entry in `catalog/services.yaml` with its options and defaults
-3. **Add to the schema** — add the type in `schemas/config_schema.yaml`
-4. **Map it in generate.py** — add to `MODULE_MAP` and `DEFAULTS` dictionaries
+1. Create a Jinja2 template: `modules/your_service.yaml.j2`
+2. Register in catalog: add entry in `catalog/services.yaml`
+3. Add to schema: add type in `schemas/config_schema.yaml`
+4. Map in generator: add to `MODULE_MAP` and `DEFAULTS` in `generate.py`
 
-The catalog entry format:
+Catalog entry format:
 ```yaml
-  your-service:
-    name: "Your Service Name"
-    description: "What it does"
-    category: Compute/Networking/Database/Storage
-    requires: [vpc]  # optional dependencies
-    options:
-      some_setting:
-        description: "What this controls"
-        type: string/integer/boolean/choice
-        default: "some-default"
-        prompt: "What to ask the user"
+your-service:
+  name: "Your Service Name"
+  description: "What it does"
+  category: Compute
+  requires: [vpc]  # optional
+  options:
+    some_setting:
+      type: string
+      default: "value"
+      required: true
+      prompt: "What to ask the user"
 ```
+
+---
+
+## Hosting on Vercel (Free)
+
+1. Push to GitHub
+2. Go to [vercel.com](https://vercel.com) → Import repo
+3. Deploy (auto-detects `vercel.json`)
+4. Every `git push` auto-redeploys
+
+---
+
+## Tech Stack
+
+- **Backend:** Python, Flask, Jinja2
+- **Validation:** jsonschema
+- **Frontend:** Vanilla HTML/CSS/JS (no framework, no build step)
+- **Hosting:** Vercel (serverless Python)
+- **Templates:** Jinja2 → CloudFormation YAML
+
+---
+
+## License
+
+MIT
