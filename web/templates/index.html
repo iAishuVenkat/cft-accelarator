@@ -609,6 +609,15 @@
             background: rgba(139, 92, 246, 0.5);
         }
 
+        /* Tags grid */
+        .tags-grid {
+            grid-template-columns: 1fr 1fr auto;
+        }
+
+        .tag-btn-group {
+            justify-content: flex-end;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .header {
@@ -669,6 +678,18 @@
             .form-grid {
                 grid-template-columns: 1fr;
                 gap: 14px;
+            }
+
+            .tags-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tag-btn-group {
+                justify-content: stretch;
+            }
+
+            .tag-btn-group .btn {
+                width: 100%;
             }
 
             .services-grid {
@@ -864,7 +885,7 @@
                 </div>
 
                 <h3 style="font-size: 13px; font-weight: 600; color: #a5b4fc; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 14px;">Tags</h3>
-                <div class="form-grid" style="grid-template-columns: 1fr 1fr auto;">
+                <div class="form-grid tags-grid">
                     <div class="form-group">
                         <label>Key</label>
                         <input type="text" id="tag-key" placeholder="team">
@@ -873,7 +894,7 @@
                         <label>Value</label>
                         <input type="text" id="tag-value" placeholder="engineering">
                     </div>
-                    <div class="form-group" style="justify-content: flex-end;">
+                    <div class="form-group tag-btn-group">
                         <label>&nbsp;</label>
                         <button class="btn btn-secondary" onclick="addTag()">+ Add</button>
                     </div>
