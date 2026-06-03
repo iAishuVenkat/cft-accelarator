@@ -230,3 +230,90 @@ def mcp_save():
         "message": f"Module saved as modules/{service_key}.yaml.j2",
         "path": str(module_path),
     })
+
+
+@app.route("/api/mcp/bulk-generate", methods=["POST"])
+def mcp_bulk_generate():
+    """Generate templates for multiple AWS resource types at once."""
+    data = request.json
+    resources = data.get("resources", [])
+
+    if not resources:
+        return jsonify({"error": "resources list is required. Provide an array of {resource_type, service_key} objects or just resource type strings."}), 400
+
+    spec = load_cfn_spec()
+    results = []
+    errors = []
+
+    for item in resources:
+        # Accept either a string or an object
+        if isinstance(item, str):
+            # Auto-find the resource type from a keyword
+            matches = find_resource_type(item, spec)
+            if not matches:
+                errors.append({"query": item, "error": f"No resource type found matching '{item}'"})
+                continue
+            resource_type = matches[0]  # Use best match
+            service_key = resource_type.split("::")[-1].lower().replace(" ", "-")
+        else:
+            resource_type = item.get("resource_type", "")
+            service_key = item.get("service_key", resource_type.split("::")[-1].lower())
+
+        if resource_type not in spec.get("ResourceTypes", {}):
+            errors.append({"resource_type": resource_type, "error": "Not found in AWS spec"})
+            continue
+
+        # Generate
+        template = generate_template(resource_type, spec, service_key)
+        catalog_entry = generate_catalog_entry(resource_type, spec, service_key)
+        defaults_entry = generate_defaults_entry(resource_type, spec, service_key)
+
+        results.append({
+            "resource_type": resource_type,
+            "service_key": service_key,
+            "template": template,
+            "catalog_entry": catalog_entry,
+            "defaults_entry": defaults_entry,
+        })
+
+    return jsonify({
+        "success": True,
+        "generated": len(results),
+        "errors": len(errors),
+        "results": results,
+        "error_details": errors,
+    })
+
+
+@app.route("/api/mcp/bulk-save", methods=["POST"])
+def mcp_bulk_save():
+    """Save multiple generated modules at once."""
+    data = request.json
+    modules = data.get("modules", [])
+
+    if not modules:
+        return jsonify({"error": "modules list is required"}), 400
+
+    saved = []
+    errors = []
+
+    for mod in modules:
+        service_key = mod.get("service_key", "").strip()
+        template = mod.get("template", "").strip()
+
+        if not service_key or not template:
+            errors.append({"service_key": service_key, "error": "Missing service_key or template"})
+            continue
+
+        module_path = ROOT_DIR / "modules" / f"{service_key}.yaml.j2"
+        with open(module_path, "w") as f:
+            f.write(template)
+        saved.append({"service_key": service_key, "path": str(module_path)})
+
+    return jsonify({
+        "success": True,
+        "saved": len(saved),
+        "errors": len(errors),
+        "saved_modules": saved,
+        "error_details": errors,
+    })

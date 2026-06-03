@@ -1014,6 +1014,19 @@
                     </div>
                 </div>
 
+                <!-- Bulk Generate -->
+                <div style="margin-bottom:24px; padding:20px; background:rgba(99,102,241,0.05); border:1px solid rgba(99,102,241,0.2); border-radius:12px;">
+                    <h3 style="font-size:14px; color:#a5b4fc; margin-bottom:10px;">⚡ Bulk Generate (Multiple Services)</h3>
+                    <p style="font-size:12px; color:#94a3b8; margin-bottom:12px;">Enter multiple service names separated by commas. Each will be auto-matched to the best AWS resource type.</p>
+                    <div class="form-group">
+                        <div style="display:flex; gap:10px;">
+                            <input type="text" id="mcp-bulk-input" placeholder="opensearch, redshift, apprunner, batch, transfer..." style="flex:1;" onkeydown="if(event.key==='Enter')mcpBulkGenerate()">
+                            <button class="btn btn-success" onclick="mcpBulkGenerate()" style="white-space:nowrap;">⚡ Generate All</button>
+                        </div>
+                    </div>
+                    <div id="mcp-bulk-results" style="display:none; margin-top:16px;"></div>
+                </div>
+
                 <!-- Results -->
                 <div id="mcp-search-results" style="display:none; margin-bottom:24px;">
                     <h3 style="font-size:14px; color:#a5b4fc; margin-bottom:12px;">Search Results</h3>
@@ -1399,6 +1412,110 @@
                 const btn = event.target;
                 btn.textContent = '✓ Copied!';
                 setTimeout(() => { btn.textContent = '📋 Copy Template'; }, 2000);
+            });
+        }
+
+        function mcpBulkGenerate() {
+            const input = document.getElementById('mcp-bulk-input').value.trim();
+            if (!input) return;
+
+            const services = input.split(',').map(s => s.trim()).filter(s => s);
+            const resultsDiv = document.getElementById('mcp-bulk-results');
+            resultsDiv.style.display = 'block';
+            resultsDiv.innerHTML = `<p style="color:#a5b4fc;">⏳ Generating ${services.length} modules...</p>`;
+
+            fetch('/api/mcp/bulk-generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ resources: services })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    resultsDiv.innerHTML = `<p style="color:#f87171;">${data.error}</p>`;
+                    return;
+                }
+
+                let html = `<div style="margin-bottom:12px;">
+                    <span style="color:#4ade80; font-weight:600;">✓ ${data.generated} generated</span>
+                    ${data.errors > 0 ? `<span style="color:#f87171; margin-left:12px;">✗ ${data.errors} failed</span>` : ''}
+                </div>`;
+
+                // Show each result
+                data.results.forEach(r => {
+                    html += `
+                    <div style="background:rgba(30,27,75,0.5); border:1px solid rgba(34,197,94,0.2); border-radius:10px; padding:12px; margin-bottom:8px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <strong style="color:#e2e8f0; font-size:13px;">${r.resource_type}</strong>
+                                <span style="color:#94a3b8; font-size:11px; margin-left:8px;">→ ${r.service_key}.yaml.j2</span>
+                            </div>
+                            <button class="btn btn-secondary" onclick="mcpCopySingle('${r.service_key}')" style="padding:4px 10px; font-size:11px;">📋 Copy</button>
+                        </div>
+                    </div>`;
+                });
+
+                // Show errors
+                data.error_details.forEach(e => {
+                    html += `<div style="background:rgba(239,68,68,0.05); border:1px solid rgba(239,68,68,0.2); border-radius:10px; padding:12px; margin-bottom:8px;">
+                        <span style="color:#f87171; font-size:13px;">✗ ${e.query || e.resource_type}: ${e.error}</span>
+                    </div>`;
+                });
+
+                // Save all button
+                if (data.results.length > 0) {
+                    html += `<button class="btn btn-success" onclick="mcpBulkSave()" style="margin-top:12px;">💾 Save All ${data.generated} Modules</button>`;
+                    html += `<button class="btn btn-secondary" onclick="mcpCopyAllTemplates()" style="margin-top:12px; margin-left:10px;">📋 Copy All</button>`;
+                }
+
+                resultsDiv.innerHTML = html;
+
+                // Store for saving
+                window.mcpBulkData = data.results;
+            })
+            .catch(err => {
+                resultsDiv.innerHTML = `<p style="color:#f87171;">Error: ${err.message}</p>`;
+            });
+        }
+
+        function mcpBulkSave() {
+            if (!window.mcpBulkData) return;
+
+            const modules = window.mcpBulkData.map(r => ({
+                service_key: r.service_key,
+                template: r.template
+            }));
+
+            fetch('/api/mcp/bulk-save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ modules })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`✓ Saved ${data.saved} modules to the accelerator!`);
+                } else {
+                    alert('Error saving: ' + JSON.stringify(data.error_details));
+                }
+            })
+            .catch(err => alert('Error: ' + err.message));
+        }
+
+        function mcpCopySingle(serviceKey) {
+            const mod = window.mcpBulkData.find(r => r.service_key === serviceKey);
+            if (mod) {
+                navigator.clipboard.writeText(mod.template);
+            }
+        }
+
+        function mcpCopyAllTemplates() {
+            if (!window.mcpBulkData) return;
+            const all = window.mcpBulkData.map(r =>
+                `# === ${r.service_key}.yaml.j2 ===\n${r.template}`
+            ).join('\n\n');
+            navigator.clipboard.writeText(all).then(() => {
+                alert('✓ All templates copied to clipboard!');
             });
         }
 
