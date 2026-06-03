@@ -828,7 +828,10 @@
             <div class="logo">☁️</div>
             <h1>CloudFormation Accelerator</h1>
         </div>
-        <span class="badge">37 AWS Services</span>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <button class="btn btn-secondary" onclick="showModuleGenerator()" style="padding: 6px 14px; font-size: 12px;">🧠 AI Module Generator</button>
+            <span class="badge">37+ AWS Services</span>
+        </div>
     </div>
 
     <div class="container">
@@ -985,6 +988,56 @@
                             <button class="btn btn-secondary" onclick="copyTemplate()">📋 Copy</button>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Module Generator Panel (overlay) -->
+    <div id="module-generator-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); backdrop-filter:blur(5px); z-index:200; overflow-y:auto; padding:20px;">
+        <div style="max-width:900px; margin:40px auto;">
+            <div class="glass-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <h2>🧠 AI Module Generator</h2>
+                    <button class="btn btn-secondary" onclick="hideModuleGenerator()" style="padding:8px 16px;">✕ Close</button>
+                </div>
+                <p class="subtitle">Generate new CFT module templates from AWS's official CloudFormation Resource Specification (1,587 resource types).</p>
+
+                <!-- Search -->
+                <div style="margin-bottom:24px;">
+                    <div class="form-group">
+                        <label>Search AWS Service</label>
+                        <div style="display:flex; gap:10px;">
+                            <input type="text" id="mcp-search-input" placeholder="e.g., opensearch, redshift, batch, apprunner..." style="flex:1;" onkeydown="if(event.key==='Enter')mcpSearch()">
+                            <button class="btn btn-primary" onclick="mcpSearch()" style="white-space:nowrap;">🔍 Search</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results -->
+                <div id="mcp-search-results" style="display:none; margin-bottom:24px;">
+                    <h3 style="font-size:14px; color:#a5b4fc; margin-bottom:12px;">Search Results</h3>
+                    <div id="mcp-results-list"></div>
+                </div>
+
+                <!-- Generated output -->
+                <div id="mcp-generated" style="display:none;">
+                    <h3 style="font-size:14px; color:#4ade80; margin-bottom:12px;">✓ Generated Module</h3>
+                    <div style="display:flex; gap:10px; margin-bottom:16px;">
+                        <span style="background:rgba(99,102,241,0.2); padding:4px 12px; border-radius:6px; font-size:12px;" id="mcp-gen-resource-type"></span>
+                        <span style="background:rgba(34,197,94,0.2); padding:4px 12px; border-radius:6px; font-size:12px;" id="mcp-gen-key"></span>
+                    </div>
+
+                    <div class="output-box" style="max-height:350px; margin-bottom:16px;">
+                        <pre id="mcp-template-output" style="font-size:12px;"></pre>
+                    </div>
+
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button class="btn btn-success" onclick="mcpSaveModule()">💾 Save to Accelerator</button>
+                        <button class="btn btn-secondary" onclick="mcpCopyTemplate()">📋 Copy Template</button>
+                    </div>
+
+                    <div id="mcp-save-status" style="display:none; margin-top:12px; padding:12px; background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3); border-radius:10px; color:#4ade80; font-size:13px;"></div>
                 </div>
             </div>
         </div>
@@ -1230,6 +1283,122 @@
                 const btn = event.target;
                 btn.textContent = '✓ Copied!';
                 setTimeout(() => { btn.textContent = '📋 Copy'; }, 2000);
+            });
+        }
+
+        // ============================================================
+        // Module Generator Functions
+        // ============================================================
+
+        let mcpGeneratedData = null;
+
+        function showModuleGenerator() {
+            document.getElementById('module-generator-overlay').style.display = 'block';
+        }
+
+        function hideModuleGenerator() {
+            document.getElementById('module-generator-overlay').style.display = 'none';
+        }
+
+        function mcpSearch() {
+            const query = document.getElementById('mcp-search-input').value.trim();
+            if (!query) return;
+
+            const resultsDiv = document.getElementById('mcp-search-results');
+            const listDiv = document.getElementById('mcp-results-list');
+            resultsDiv.style.display = 'block';
+            listDiv.innerHTML = '<p style="color:#94a3b8;">Searching...</p>';
+
+            fetch(`/api/mcp/search?q=${encodeURIComponent(query)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        listDiv.innerHTML = `<p style="color:#f87171;">${data.error}</p>`;
+                        return;
+                    }
+                    if (data.count === 0) {
+                        listDiv.innerHTML = '<p style="color:#94a3b8;">No matching services found.</p>';
+                        return;
+                    }
+                    listDiv.innerHTML = data.results.map(r => `
+                        <div style="background:rgba(30,27,75,0.5); border:1px solid rgba(139,92,246,0.15); border-radius:12px; padding:14px; margin-bottom:8px; cursor:pointer; transition:all 0.2s;"
+                             onclick="mcpGenerate('${r.resource_type}')"
+                             onmouseover="this.style.borderColor='#6366f1'"
+                             onmouseout="this.style.borderColor='rgba(139,92,246,0.15)'">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <div>
+                                    <strong style="color:#e2e8f0; font-size:14px;">${r.resource_type}</strong>
+                                    <p style="color:#94a3b8; font-size:12px; margin-top:4px;">${r.total_properties} properties${r.required_properties.length ? ' • Required: ' + r.required_properties.slice(0,3).join(', ') : ''}</p>
+                                </div>
+                                <span style="background:linear-gradient(135deg,#6366f1,#8b5cf6); color:white; padding:4px 12px; border-radius:6px; font-size:11px; font-weight:600;">Generate →</span>
+                            </div>
+                        </div>
+                    `).join('');
+                })
+                .catch(err => {
+                    listDiv.innerHTML = `<p style="color:#f87171;">Error: ${err.message}</p>`;
+                });
+        }
+
+        function mcpGenerate(resourceType) {
+            const serviceKey = resourceType.split('::').pop().toLowerCase().replace(/[^a-z0-9]/g, '-');
+
+            document.getElementById('mcp-generated').style.display = 'none';
+            document.getElementById('mcp-save-status').style.display = 'none';
+
+            fetch('/api/mcp/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ resource_type: resourceType, service_key: serviceKey })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+                mcpGeneratedData = data;
+                document.getElementById('mcp-generated').style.display = 'block';
+                document.getElementById('mcp-gen-resource-type').textContent = data.resource_type;
+                document.getElementById('mcp-gen-key').textContent = `key: ${data.service_key}`;
+                document.getElementById('mcp-template-output').textContent = data.template;
+            })
+            .catch(err => alert('Error: ' + err.message));
+        }
+
+        function mcpSaveModule() {
+            if (!mcpGeneratedData) return;
+
+            fetch('/api/mcp/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    service_key: mcpGeneratedData.service_key,
+                    template: mcpGeneratedData.template
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                const status = document.getElementById('mcp-save-status');
+                status.style.display = 'block';
+                if (data.success) {
+                    status.innerHTML = `✓ ${data.message}<br><br><small style="color:#94a3b8;">To fully register this module, also add entries to:<br>• catalog/services.yaml<br>• generate.py (MODULE_MAP + DEFAULTS)<br>• schemas/config_schema.yaml</small>`;
+                } else {
+                    status.style.borderColor = 'rgba(239,68,68,0.3)';
+                    status.style.background = 'rgba(239,68,68,0.1)';
+                    status.style.color = '#f87171';
+                    status.textContent = 'Error: ' + data.error;
+                }
+            })
+            .catch(err => alert('Error: ' + err.message));
+        }
+
+        function mcpCopyTemplate() {
+            if (!mcpGeneratedData) return;
+            navigator.clipboard.writeText(mcpGeneratedData.template).then(() => {
+                const btn = event.target;
+                btn.textContent = '✓ Copied!';
+                setTimeout(() => { btn.textContent = '📋 Copy Template'; }, 2000);
             });
         }
 

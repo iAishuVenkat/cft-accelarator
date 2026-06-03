@@ -131,3 +131,102 @@ def generate():
         "template": main_template,
         "deploy_command": f"aws cloudformation deploy --template-file main.yaml --stack-name {project}-{environment} --capabilities CAPABILITY_NAMED_IAM",
     })
+
+
+# ============================================================
+# MCP-Powered Module Generator Endpoints
+# ============================================================
+
+# Import MCP server utilities
+sys.path.insert(0, str(ROOT_DIR / "mcp_server"))
+from server import (
+    load_cfn_spec, find_resource_type, get_properties,
+    generate_template, generate_catalog_entry, generate_defaults_entry
+)
+
+
+@app.route("/api/mcp/search", methods=["GET"])
+def mcp_search():
+    """Search AWS resource types from the CloudFormation spec."""
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify({"error": "Query parameter 'q' is required"}), 400
+
+    spec = load_cfn_spec()
+    matches = find_resource_type(query, spec)
+
+    results = []
+    for rt in matches:
+        props = get_properties(rt, spec)
+        required = [k for k, v in props.items() if v.get("Required", False)]
+        results.append({
+            "resource_type": rt,
+            "service": rt.split("::")[1] if "::" in rt else "",
+            "resource": rt.split("::")[-1] if "::" in rt else rt,
+            "total_properties": len(props),
+            "required_properties": required,
+        })
+
+    return jsonify({
+        "query": query,
+        "count": len(results),
+        "results": results,
+    })
+
+
+@app.route("/api/mcp/generate", methods=["POST"])
+def mcp_generate():
+    """Generate a Jinja2 module template for an AWS resource type."""
+    data = request.json
+    resource_type = data.get("resource_type", "").strip()
+    service_key = data.get("service_key", "").strip()
+
+    if not resource_type:
+        return jsonify({"error": "resource_type is required"}), 400
+    if not service_key:
+        # Auto-generate key from resource type
+        service_key = resource_type.split("::")[-1].lower()
+        service_key = service_key.replace(" ", "-")
+
+    spec = load_cfn_spec()
+
+    if resource_type not in spec.get("ResourceTypes", {}):
+        return jsonify({"error": f"'{resource_type}' not found in AWS CloudFormation spec."}), 404
+
+    # Generate template and metadata
+    template = generate_template(resource_type, spec, service_key)
+    catalog_entry = generate_catalog_entry(resource_type, spec, service_key)
+    defaults_entry = generate_defaults_entry(resource_type, spec, service_key)
+
+    return jsonify({
+        "success": True,
+        "resource_type": resource_type,
+        "service_key": service_key,
+        "template": template,
+        "catalog_entry": catalog_entry,
+        "defaults_entry": defaults_entry,
+        "module_map_entry": f'    "{service_key}": "{service_key}.yaml.j2",',
+        "schema_entry": f"            - {service_key}",
+    })
+
+
+@app.route("/api/mcp/save", methods=["POST"])
+def mcp_save():
+    """Save a generated module to the modules/ directory and register it."""
+    data = request.json
+    service_key = data.get("service_key", "").strip()
+    template_content = data.get("template", "").strip()
+
+    if not service_key or not template_content:
+        return jsonify({"error": "service_key and template are required"}), 400
+
+    # Save the template file
+    module_path = ROOT_DIR / "modules" / f"{service_key}.yaml.j2"
+    with open(module_path, "w") as f:
+        f.write(template_content)
+
+    return jsonify({
+        "success": True,
+        "message": f"Module saved as modules/{service_key}.yaml.j2",
+        "path": str(module_path),
+    })
